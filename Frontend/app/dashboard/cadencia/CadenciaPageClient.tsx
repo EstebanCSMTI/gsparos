@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useAuth } from "@/contexts/auth-context"
+import { API_ENDPOINTS } from "@/lib/api-config"
 
 interface Cadencia {
   id_cadencia: number
@@ -36,7 +37,7 @@ export default function CadenciaPageClient() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("http://192.168.16.94:8028/api/cadencias")
+      const response = await fetch(API_ENDPOINTS.cadencias)
       if (!response.ok) {
         throw new Error("Error al cargar los datos de cadencia")
       }
@@ -78,7 +79,7 @@ export default function CadenciaPageClient() {
 
     setSaving(cadencia.id_cadencia)
     try {
-      const response = await fetch(`http://192.168.16.94:8028/api/cadencias/${cadencia.id_cadencia}`, {
+      const response = await fetch(`${API_ENDPOINTS.cadencias}/${cadencia.id_cadencia}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

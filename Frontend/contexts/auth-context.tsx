@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { API_ENDPOINTS } from "@/lib/api-config"
 
 interface User {
   id_usuario: number

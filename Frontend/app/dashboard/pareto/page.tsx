@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { API_ENDPOINTS } from "@/lib/api-config"
 
 // Definir la interfaz para los datos de la API
 interface RegistroParo {
@@ -86,7 +87,7 @@ export default function ParetoPage() {
       setError(null)
 
       try {
-        const response = await fetch("http://192.168.16.94:8028/api/registros")
+        const response = await fetch(API_ENDPOINTS.registros)
 
         if (!response.ok) {
           throw new Error(`Error al cargar los datos: ${response.status} ${response.statusText}`)
@@ -414,7 +415,7 @@ export default function ParetoPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="especialidad">Especialidad</Label>
             <Select value={filtroEspecialidad} onValueChange={setFiltroEspecialidad}>
               <SelectTrigger id="especialidad" className="w-full">
@@ -429,7 +430,7 @@ export default function ParetoPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
         </div>
 
         <div className="flex flex-wrap justify-end gap-2">

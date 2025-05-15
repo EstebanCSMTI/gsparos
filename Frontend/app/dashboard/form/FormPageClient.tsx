@@ -53,6 +53,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
+import { API_ENDPOINTS } from "@/lib/api-config"
+
 
 // Interfaces para los tipos de datos
 interface Categoria {
@@ -234,9 +236,7 @@ export default function FormPageClient() {
       setErrorCategorias(null);
 
       try {
-        const response = await fetch(
-          "http://192.168.16.94:8028/api/dynamic/Categoria"
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic("Categoria"))
 
         if (!response.ok) {
           throw new Error(
@@ -268,9 +268,7 @@ export default function FormPageClient() {
       setErrorProcesos(null);
 
       try {
-        const response = await fetch(
-          "http://192.168.16.94:8028/api/dynamic/Proceso"
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic("Proceso"))
 
         if (!response.ok) {
           throw new Error(
@@ -320,9 +318,8 @@ export default function FormPageClient() {
           / /g,
           "_"
         );
-        const response = await fetch(
-          `http://192.168.16.94:8028/api/dynamic/${nombreProcesoUrl}`
-        );
+
+        const response = await fetch(API_ENDPOINTS.dynamic(nombreProcesoUrl))
 
         if (!response.ok) {
           throw new Error(
@@ -340,9 +337,7 @@ export default function FormPageClient() {
 
         setEquipos(data);
 
-        const cadenciaResonse = await fetch(
-          `http://192.168.16.94:8028/api/cadencias/${procesoSeleccionado.id_proceso}`
-        );
+        const cadenciaResonse = await fetch(`${API_ENDPOINTS.cadencias}/${procesoSeleccionado.id_proceso}`)
         if (!cadenciaResonse.ok) {
           throw new Error(
             `Error al cargar cadencias: ${cadenciaResonse.status} ${cadenciaResonse.statusText}`
@@ -375,10 +370,7 @@ export default function FormPageClient() {
       setErrorEspecialidades(null);
 
       try {
-        const response = await fetch(
-          "http://192.168.16.94:8028/api/dynamic/Especialidad"
-        );
-
+        const response = await fetch(API_ENDPOINTS.dynamic("Especialidad"))
         if (!response.ok) {
           throw new Error(
             `Error al cargar especialidades: ${response.status} ${response.statusText}`
@@ -569,9 +561,8 @@ export default function FormPageClient() {
         // Convertir espacios a guiones bajos para la URL
         const nombreEspecialidadUrl =
           especialidadSeleccionada.nombre_especialidad.replace(/ /g, "_");
-        const response = await fetch(
-          `http://192.168.16.94:8028/api/dynamic/${nombreEspecialidadUrl}`
-        );
+
+        const response = await fetch(API_ENDPOINTS.dynamic(nombreEspecialidadUrl))
 
         if (!response.ok) {
           throw new Error(
@@ -624,9 +615,7 @@ export default function FormPageClient() {
           tipoSeleccionado?.[nombrefield!]?.toLowerCase().replace(/ /g, "_") ||
           "";
 
-        const response = await fetch(
-          `http://192.168.16.94:8028/api/dynamic/${nombreTipo}`
-        );
+          const response = await fetch(API_ENDPOINTS.dynamic(nombreTipo))
 
         if (!response.ok) {
           throw new Error(
@@ -771,7 +760,7 @@ export default function FormPageClient() {
       };
 
       // Enviar los datos a la API
-      const response = await fetch("http://192.168.16.94:8028/api/registros", {
+      const response = await fetch(API_ENDPOINTS.registros, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
