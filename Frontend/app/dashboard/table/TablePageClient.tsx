@@ -701,7 +701,8 @@ const TablePageClient = () => {
       (item.tipo?.toLowerCase() || "").includes(searchTermLower) ||
       (item.causa?.toLowerCase() || "").includes(searchTermLower) ||
       (item.detalle?.toLowerCase() || "").includes(searchTermLower) ||
-      (item.nombre_usuario?.toLowerCase() || "").includes(searchTermLower)
+      (item.nombre_usuario?.toLowerCase() || "").includes(searchTermLower) ||
+      (item.id_registro.toString() || "").includes(searchTermLower)
     );
   });
 
@@ -1409,7 +1410,7 @@ const TablePageClient = () => {
                       <ChevronDown className="h-4 w-4 ml-1 text-primary" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-3">
+                  <PopoverContent className="w-[320px] p-3">
                     <div className="space-y-3">
                       <h3 className="font-medium text-sm">
                         Filtros de búsqueda
@@ -1969,6 +1970,12 @@ const TablePageClient = () => {
                       <Table>
                         <TableHeader className="sticky top-0 bg-white z-10">
                           <TableRow>
+                            <TableHead className="w-[10%]">
+                              <div className="flex items-center gap-1">
+                                <Tag className="h-4 w-4 text-primary" />
+                                <span>ID</span>
+                              </div>
+                            </TableHead>
                             <TableHead className="w-[18%]">
                               <div className="flex items-center gap-1">
                                 <Tag className="h-4 w-4 text-primary" />
@@ -2011,6 +2018,9 @@ const TablePageClient = () => {
                           {paginatedData.length > 0 ? (
                             paginatedData.map((row) => (
                               <TableRow key={row.id_registro}>
+                                <TableCell className="truncate">
+                                  {row.id_registro}
+                                </TableCell>
                                 <TableCell className="truncate">
                                   {row.categoria}
                                 </TableCell>

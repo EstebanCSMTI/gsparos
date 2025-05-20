@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Gauge, Save, Loader2, Factory, AlertCircle, Lock } from "lucide-react"
 
@@ -25,7 +27,7 @@ export default function CadenciaPageClient() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<Record<number, number>>({})
+  const [editValues, setEditValues] = useState<Record<number, string>>({})
   const { toast } = useToast()
   const { isAdmin } = useAuth()
 
@@ -45,9 +47,9 @@ export default function CadenciaPageClient() {
       setCadencias(data)
 
       // Inicializar los valores de edición
-      const initialValues: Record<number, number> = {}
+      const initialValues: Record<number, string> = {}
       data.forEach((cadencia: Cadencia) => {
-        initialValues[cadencia.id_cadencia] = cadencia.valor_cadencia
+        initialValues[cadencia.id_cadencia] = cadencia.valor_cadencia.toString()
       })
       setEditValues(initialValues)
     } catch (err) {
@@ -59,12 +61,32 @@ export default function CadenciaPageClient() {
   }
 
   const handleInputChange = (id: number, value: string) => {
-    // Permitir solo números y punto decimal
-    const numericValue = value.replace(/[^0-9.]/g, "")
-    setEditValues({
-      ...editValues,
-      [id]: numericValue === "" ? 0 : Number.parseFloat(numericValue),
-    })
+    // Filtrar para permitir solo dígitos y un punto decimal
+    // Si el valor actual ya tiene un punto decimal, no permitir otro
+    const currentValue = editValues[id] || ""
+    const hasDecimalPoint = currentValue.includes(".")
+
+    // Validar cada carácter nuevo
+    let isValid = true
+
+    // Si es un punto decimal y ya hay uno, rechazar
+    if (value.length > currentValue.length) {
+      const newChar = value.charAt(value.length - 1)
+      if (newChar === "." && hasDecimalPoint) {
+        isValid = false
+      } else if (!/[0-9.]/.test(newChar)) {
+        // Si no es un dígito ni un punto, rechazar
+        isValid = false
+      }
+    }
+
+    // Si la validación pasa, actualizar el valor
+    if (isValid && /^\d*\.?\d*$/.test(value)) {
+      setEditValues({
+        ...editValues,
+        [id]: value,
+      })
+    }
   }
 
   const handleSave = async (cadencia: Cadencia) => {
@@ -77,6 +99,27 @@ export default function CadenciaPageClient() {
       return
     }
 
+    // Validar que el valor sea un número decimal válido antes de guardar
+    const inputValue = editValues[cadencia.id_cadencia]?.toString() || "0"
+    if (!/^\d*\.?\d*$/.test(inputValue) || inputValue === ".") {
+      toast({
+        title: "Valor inválido",
+        description: "Por favor ingrese un número decimal válido.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const valorCadencia = Number.parseFloat(inputValue || "0")
+    if (isNaN(valorCadencia)) {
+      toast({
+        title: "Valor inválido",
+        description: "Por favor ingrese un número decimal válido.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSaving(cadencia.id_cadencia)
     try {
       const response = await fetch(`${API_ENDPOINTS.cadencias}/${cadencia.id_cadencia}`, {
@@ -84,7 +127,7 @@ export default function CadenciaPageClient() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ valor_cadencia: editValues[cadencia.id_cadencia] }),
+        body: JSON.stringify({ valor_cadencia: valorCadencia }),
       })
 
       if (!response.ok) {
@@ -93,9 +136,7 @@ export default function CadenciaPageClient() {
 
       // Actualizar el estado local con el nuevo valor
       setCadencias(
-        cadencias.map((c) =>
-          c.id_cadencia === cadencia.id_cadencia ? { ...c, valor_cadencia: editValues[cadencia.id_cadencia] } : c,
-        ),
+        cadencias.map((c) => (c.id_cadencia === cadencia.id_cadencia ? { ...c, valor_cadencia: valorCadencia } : c)),
       )
 
       toast({
@@ -116,6 +157,30 @@ export default function CadenciaPageClient() {
 
   const handleRefresh = () => {
     fetchCadencias()
+  }
+
+  // Función para manejar el evento onKeyDown y prevenir caracteres no permitidos
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Permitir: backspace, delete, tab, escape, enter, punto decimal y números
+    if (
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "Tab" ||
+      e.key === "Escape" ||
+      e.key === "Enter" ||
+      e.key === "." ||
+      /[0-9]/.test(e.key)
+    ) {
+      // Si ya hay un punto decimal y el usuario intenta ingresar otro, prevenir
+      if (e.key === "." && e.currentTarget.value.includes(".")) {
+        e.preventDefault()
+      }
+      // Permitir estas teclas
+      return
+    }
+
+    // Prevenir cualquier otra tecla
+    e.preventDefault()
   }
 
   return (
@@ -187,10 +252,13 @@ export default function CadenciaPageClient() {
                     <Input
                       id={`cadencia-${cadencia.id_cadencia}`}
                       type="text"
-                      value={editValues[cadencia.id_cadencia] ?? cadencia.valor_cadencia}
+                      inputMode="decimal"
+                      value={editValues[cadencia.id_cadencia] ?? cadencia.valor_cadencia.toString()}
                       onChange={(e) => handleInputChange(cadencia.id_cadencia, e.target.value)}
+                      onKeyDown={handleKeyDown}
                       className="text-lg font-medium"
                       disabled={!isAdmin}
+                      placeholder="0.00"
                     />
                   </div>
                 </CardContent>
@@ -200,7 +268,8 @@ export default function CadenciaPageClient() {
                       className="w-full"
                       onClick={() => handleSave(cadencia)}
                       disabled={
-                        saving === cadencia.id_cadencia || editValues[cadencia.id_cadencia] === cadencia.valor_cadencia
+                        saving === cadencia.id_cadencia ||
+                        editValues[cadencia.id_cadencia] === cadencia.valor_cadencia.toString()
                       }
                     >
                       {saving === cadencia.id_cadencia ? (

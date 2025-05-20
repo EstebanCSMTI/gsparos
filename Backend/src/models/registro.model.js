@@ -11,7 +11,10 @@ export const getAllRegistros = async () => {
 FROM 
     Registro R
 LEFT JOIN 
-    Usuario U ON R.id_usuario = U.id_usuario;
+    Usuario U ON R.id_usuario = U.id_usuario
+ORDER BY 
+    R.id_registro DESC;
+
 
         `);
     return result.recordset;

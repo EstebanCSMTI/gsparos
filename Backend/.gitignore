@@ -1,4 +1,5 @@
-
+src/script.js
+src/data.csv
 .env
 
 node_modules
