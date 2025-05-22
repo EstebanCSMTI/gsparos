@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart3, ChevronLeft, ClipboardList, FormInput, LogOut, Menu, Gauge } from "lucide-react"
+import { BarChart3, ChevronLeft, ClipboardList, FormInput, LogOut, Menu, Gauge, Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -39,6 +39,11 @@ export function Sidebar() {
       path: "/dashboard/cadencia",
       icon: Gauge,
     },
+    {
+      name: "Guia de uso",
+      path: "https://drive.google.com/file/d/17zHGWj7P7BRKufTq1M6GsztfDCECKzYn/view?usp=drive_link",
+      icon: Info,
+    },
   ]
 
   return (
@@ -69,6 +74,7 @@ export function Sidebar() {
                 <li key={route.path}>
                   <Link
                     href={route.path}
+                    target={route.path.startsWith("http") ? "_blank" : undefined}
                     className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted ${
                       pathname === route.path ? "bg-muted" : ""
                     }`}

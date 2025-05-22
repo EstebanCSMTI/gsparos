@@ -33,6 +33,7 @@ interface RegistroParo {
   especialidad: string
   causa: string
   horas_de_paro: number
+  proceso: string
 }
 
 interface ParetoData {
@@ -51,6 +52,8 @@ export default function ParetoPage() {
   const [error, setError] = useState<string | null>(null)
   const [filtroEspecialidad, setFiltroEspecialidad] = useState<string>("todas")
   const [especialidades, setEspecialidades] = useState<string[]>([])
+  const [filtroProceso, setFiltroProceso] = useState<string>("todos")
+  const [procesos, setProcesos] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
   const [librariesLoaded, setLibrariesLoaded] = useState({
     html2canvas: false,
@@ -138,7 +141,12 @@ export default function ParetoPage() {
         const uniqueEspecialidades = Array.from(new Set(apiData.map((item) => item.especialidad)))
           .filter(Boolean)
           .sort()
+        const uniqueProcesos = Array.from(new Set(apiData.map((item) => item.proceso)))
+          .filter(Boolean)
+          .sort()
+
         setEspecialidades(uniqueEspecialidades)
+        setProcesos(uniqueProcesos)
       } catch (err) {
         console.error("Error fetching data:", err)
         setError(err instanceof Error ? err.message : "Error desconocido al cargar los datos")
@@ -232,14 +240,15 @@ export default function ParetoPage() {
       }
     })
 
-    // Filtrar por especialidad si se ha seleccionado una
-    const filteredByEspecialidad =
-      filtroEspecialidad === "todas"
-        ? filteredByTime
-        : filteredByTime.filter((item) => item.especialidad === filtroEspecialidad)
+    // Filtrar por especialidad y proceso si se han seleccionado
+    const filteredByEspecialidadAndProceso = filteredByTime.filter((item) => {
+      const matchesEspecialidad = filtroEspecialidad === "todas" || item.especialidad === filtroEspecialidad
+      const matchesProceso = filtroProceso === "todos" || item.proceso === filtroProceso
+      return matchesEspecialidad && matchesProceso
+    })
 
     // Agrupar por causa y sumar horas de paro
-    const causaGroups = filteredByEspecialidad.reduce<Record<string, number>>((acc, item) => {
+    const causaGroups = filteredByEspecialidadAndProceso.reduce<Record<string, number>>((acc, item) => {
       const causa = item.causa.toLowerCase() || "Sin especificar"
       acc[causa] = (acc[causa] || 0) + item.horas_de_paro
       return acc
@@ -252,19 +261,28 @@ export default function ParetoPage() {
 
     // Calcular el total de horas
     const totalHoras = sortedCausas.reduce((sum, item) => sum + item.horas, 0)
+    console.log("Total de horas calculado:", totalHoras)
 
     // Calcular porcentajes y porcentaje acumulado
     let acumulado = 0
     const paretoDataCalculated = sortedCausas.map((item) => {
-      const porcentaje = totalHoras > 0 ? (item.horas / totalHoras) * 100 : 0
+      // Asegurarse de que no haya división por cero y que los valores sean números
+      const porcentaje = totalHoras > 0 ? Number((item.horas / totalHoras) * 100) : 0
       acumulado += porcentaje
+
+      // Registrar los valores para depuración
+      console.log(`Causa: ${item.causa}, Horas: ${item.horas}, Porcentaje: ${porcentaje}, Acumulado: ${acumulado}`)
+
       return {
         causa: item.causa,
-        horas: item.horas,
+        horas: Number(item.horas),
         porcentaje: porcentaje,
         porcentajeAcumulado: acumulado,
       }
     })
+
+    // Verificar los datos calculados
+    console.log("Datos de Pareto calculados:", paretoDataCalculated)
 
     setParetoData(paretoDataCalculated)
 
@@ -273,7 +291,7 @@ export default function ParetoPage() {
 
     // Resetear a la primera página cuando cambian los filtros
     setCurrentPage(1)
-  }, [data, timeRange, filtroEspecialidad, itemsPerPage, dateRange])
+  }, [data, timeRange, filtroEspecialidad, filtroProceso, itemsPerPage, dateRange])
 
   // Manejar cambios en el rango de tiempo
   const handleTimeRangeChange = (value: string) => {
@@ -464,6 +482,7 @@ export default function ParetoPage() {
       }
 
       worksheetChart.addRow([`Especialidad: ${filtroEspecialidad === "todas" ? "Todas" : filtroEspecialidad}`])
+      worksheetChart.addRow([`Proceso: ${filtroProceso === "todos" ? "Todos" : filtroProceso}`])
       worksheetChart.addRow([])
 
       // Añadir imagen
@@ -503,7 +522,10 @@ export default function ParetoPage() {
       const especialidadFileName =
         filtroEspecialidad === "todas" ? "todas_especialidades" : filtroEspecialidad.replace(/\s+/g, "_").toLowerCase()
 
-      const fileName = `pareto_analisis_${timeRangeFileName}_${especialidadFileName}_${format(
+      const procesoFileName =
+        filtroProceso === "todos" ? "todos_procesos" : filtroProceso.replace(/\s+/g, "_").toLowerCase()
+
+      const fileName = `pareto_analisis_${timeRangeFileName}_${especialidadFileName}_${procesoFileName}_${format(
         new Date(),
         "yyyy-MM-dd",
       )}.xlsx`
@@ -667,6 +689,25 @@ export default function ParetoPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="proceso" className="text-sm font-medium">
+                Proceso
+              </Label>
+              <Select value={filtroProceso} onValueChange={setFiltroProceso}>
+                <SelectTrigger id="proceso" className="w-full">
+                  <SelectValue placeholder="Seleccionar proceso" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los procesos</SelectItem>
+                  {procesos.map((proc) => (
+                    <SelectItem key={proc} value={proc}>
+                      {proc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Rango de fechas personalizado */}
@@ -747,6 +788,17 @@ export default function ParetoPage() {
               <X
                 className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-primary"
                 onClick={() => setFiltroEspecialidad("todas")}
+              />
+            </Badge>
+          )}
+
+          {filtroProceso !== "todos" && (
+            <Badge variant="outline" className="flex items-center gap-1 px-3 py-1.5 border-primary/30">
+              <span className="text-primary">Proceso:</span>
+              {filtroProceso}
+              <X
+                className="h-3 w-3 ml-1 cursor-pointer text-muted-foreground hover:text-primary"
+                onClick={() => setFiltroProceso("todos")}
               />
             </Badge>
           )}
@@ -912,8 +964,8 @@ export default function ParetoPage() {
                         {isMobile ? truncateText(row.causa, 20) : row.causa}
                       </TableCell>
                       <TableCell className="text-right">{row.horas.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{row.porcentaje.toFixed(1)}%</TableCell>
-                      <TableCell className="text-right">{row.porcentajeAcumulado.toFixed(1)}%</TableCell>
+                      <TableCell className="text-right">{row.porcentaje.toFixed(2)}%</TableCell>
+                      <TableCell className="text-right">{row.porcentajeAcumulado.toFixed(2)}%</TableCell>
                     </TableRow>
                   )
                 })}

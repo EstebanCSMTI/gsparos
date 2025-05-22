@@ -7,7 +7,11 @@ import { Toaster } from "@/components/ui/toaster"
 export const metadata: Metadata = {
   title: "Sistema de Registro de Paros",
   description: "Sistema para el registro y análisis de paros industriales",
-  generator: "v0.dev",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 }
 
 export default function RootLayout({

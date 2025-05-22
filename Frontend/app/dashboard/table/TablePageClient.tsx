@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { DateTime } from "luxon";
 
 import { useEffect, useState } from "react";
 import {
@@ -121,7 +122,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { API_ENDPOINTS } from "@/lib/api-config"
+import { API_ENDPOINTS } from "@/lib/api-config";
 
 // Definir la interfaz para los datos de la API
 interface RegistroParo {
@@ -335,9 +336,7 @@ const TablePageClient = () => {
       setErrorCategorias(null);
 
       try {
-        const response = await fetch(
-          API_ENDPOINTS.dynamic("Categoria")
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic("Categoria"));
 
         if (!response.ok) {
           throw new Error(
@@ -369,9 +368,7 @@ const TablePageClient = () => {
       setErrorProcesos(null);
 
       try {
-        const response = await fetch(
-          API_ENDPOINTS.dynamic("Proceso")
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic("Proceso"));
 
         if (!response.ok) {
           throw new Error(
@@ -403,9 +400,7 @@ const TablePageClient = () => {
       setErrorEspecialidades(null);
 
       try {
-        const response = await fetch(
-          API_ENDPOINTS.dynamic("Especialidad")
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic("Especialidad"));
 
         if (!response.ok) {
           throw new Error(
@@ -455,9 +450,7 @@ const TablePageClient = () => {
           / /g,
           "_"
         );
-        const response = await fetch(
-          API_ENDPOINTS.dynamic(nombreProcesoUrl)
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic(nombreProcesoUrl));
 
         if (!response.ok) {
           throw new Error(
@@ -568,9 +561,7 @@ const TablePageClient = () => {
           tipoSeleccionado?.[nombrefield!]?.toLowerCase().replace(/ /g, "_") ||
           "";
 
-        const response = await fetch(
-          API_ENDPOINTS.dynamic(nombreTipo)
-        );
+        const response = await fetch(API_ENDPOINTS.dynamic(nombreTipo));
 
         if (!response.ok) {
           throw new Error(
@@ -782,12 +773,13 @@ const TablePageClient = () => {
     if (!dateString) return "N/A";
     try {
       const date = new Date(dateString);
-      return date.toLocaleString("es-MX", {
+      return date.toLocaleString("es-ES", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: true,
       });
     } catch (error) {
       console.error("Error formatting date:", error);
@@ -796,11 +788,15 @@ const TablePageClient = () => {
   };
 
   // Función para formatear fechas para input datetime-local
+  // Replace the existing formatDateForInput function
   const formatDateForInput = (dateString: string) => {
     if (!dateString) return "";
     try {
       const date = new Date(dateString);
-      return date.toISOString().slice(0, 16); // Formato YYYY-MM-DDThh:mm
+      // Adjust for timezone offset
+      const tzOffset = date.getTimezoneOffset() * 60000; // Convert offset to milliseconds
+      const localDate = new Date(date.getTime() - tzOffset);
+      return localDate.toISOString().slice(0, 16); // Format as YYYY-MM-DDThh:mm
     } catch (error) {
       console.error("Error formatting date for input:", error);
       return "";
@@ -1207,13 +1203,16 @@ const TablePageClient = () => {
         (causa) => getCausaId(causa).toString() === formData.cause
       );
 
-      // Calcular horas de paro
-      const stopDate = new Date(formData.stopDate);
-      const startDate = new Date(formData.startDate);
-      const horasDeParo =
-        (startDate.getTime() - stopDate.getTime()) / (1000 * 60 * 60);
+      const stopDate = DateTime.fromISO(formData.stopDate, { zone: "utc" });
+      const startDate = DateTime.fromISO(formData.startDate, { zone: "utc" });
 
-      // Crear el objeto de datos para enviar
+      const fechaParo = stopDate.toFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+      const fechaArranque = startDate.toFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+
+      const horasDeParo = Math.round(startDate.diff(stopDate, "hours").hours * 1000) / 1000;
+
+      console.log("✅", fechaArranque, fechaParo);
+
       const dataToSend = {
         id_registro: formData.id_registro,
         categoria: categoriaSeleccionada?.nombre_categoria || "",
@@ -1223,10 +1222,9 @@ const TablePageClient = () => {
         tipo: tipoSeleccionado ? getTipoName(tipoSeleccionado) : "",
         causa: causaSeleccionada ? getCausaName(causaSeleccionada) : "",
         detalle: formData.details,
-        fecha_y_hora_de_paro: formData.stopDate,
-        fecha_y_hora_de_arranque: formData.startDate,
+        fecha_y_hora_de_paro: fechaParo,
+        fecha_y_hora_de_arranque: fechaArranque,
         horas_de_paro: horasDeParo,
-        // Mantener los valores originales para estos campos
         cadencia: selectedRecord?.cadencia || 1,
         perdida_de_produccion: horasDeParo * (selectedRecord?.cadencia || 1),
         id_usuario: selectedRecord?.id_usuario || user?.id_usuario || 1,
@@ -1261,7 +1259,9 @@ const TablePageClient = () => {
               ...dataToSend,
               id_categoria: categoriaSeleccionada?.id_categoria || 0,
               id_proceso: procesoSeleccionado?.id_proceso || 0,
-              id_equipo: equipoSeleccionado ? getEquipoId(equipoSeleccionado) : 0,
+              id_equipo: equipoSeleccionado
+                ? getEquipoId(equipoSeleccionado)
+                : 0,
               id_especialidad: especialidadSeleccionada?.id_especialidad || 0,
               id_tipo: tipoSeleccionado ? getTipoId(tipoSeleccionado) : 0,
               id_causa: causaSeleccionada ? getCausaId(causaSeleccionada) : 0,
@@ -2034,7 +2034,7 @@ const TablePageClient = () => {
                                   {formatDate(row.fecha_y_hora_de_paro)}
                                 </TableCell>
                                 <TableCell className="truncate">
-                                  {row.horas_de_paro}
+                                  {row.horas_de_paro?.toFixed(3)}
                                 </TableCell>
                                 <TableCell className="text-center">
                                   <div className="flex justify-center">
@@ -2313,7 +2313,7 @@ const TablePageClient = () => {
                   <Clock className="h-3 w-3 text-primary" />
                   Horas de paro:
                 </div>
-                <div>{selectedRecord.horas_de_paro}</div>
+                <div>{selectedRecord.horas_de_paro?.toFixed(3)}</div>
 
                 <div className="font-medium flex items-center gap-1">
                   <Timer className="h-3 w-3 text-primary" />
@@ -2472,7 +2472,9 @@ const TablePageClient = () => {
                       required
                       className="h-10 pl-9"
                       value={formData.stopDate}
-                      onChange={(e) => handleChange("stopDate", e.target.value)}
+                      onChange={(e) => {
+                        handleChange("stopDate", e.target.value);
+                      }}
                     />
                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>
@@ -2494,9 +2496,9 @@ const TablePageClient = () => {
                       required
                       className="h-10 pl-9"
                       value={formData.startDate}
-                      onChange={(e) =>
-                        handleChange("startDate", e.target.value)
-                      }
+                      onChange={(e) => {
+                        handleChange("startDate", e.target.value);
+                      }}
                     />
                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>

@@ -1,12 +1,27 @@
 import sql from "mssql";
 import { poolPromise } from "../config/db.js";
 
+import { DateTime } from "luxon";
+
 export const getAllRegistros = async () => {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
-            SELECT 
-    R.*, 
+      SELECT 
+    R.id_registro,
+    R.categoria,
+    R.proceso,
+    R.equipo,
+    R.especialidad,
+    R.tipo,
+    R.causa,
+    R.detalle,
+    CONVERT(varchar, R.fecha_y_hora_de_paro, 120) AS fecha_y_hora_de_paro,
+    CONVERT(varchar, R.fecha_y_hora_de_arranque, 120) AS fecha_y_hora_de_arranque,
+    R.cadencia,
+    R.perdida_de_produccion,
+    R.horas_de_paro,
+    R.id_usuario,
     U.nombre_usuario + ' ' + U.apellido_usuario AS nombre_usuario
 FROM 
     Registro R
@@ -15,9 +30,9 @@ LEFT JOIN
 ORDER BY 
     R.id_registro DESC;
 
+    `);
 
-        `);
-    return result.recordset;
+    return result.recordset
   } catch (error) {
     throw new Error("Error fetching registros: " + error.message);
   }
@@ -42,6 +57,8 @@ export const getRegistroById = async (id) => {
 export const createRegistro = async (registroData) => {
   try {
     const pool = await poolPromise;
+    console.log(registroData.fecha_y_hora_de_arranque);
+    console.log(registroData.fecha_y_hora_de_paro);
     const result = await pool
       .request()
       .input("categoria", sql.NVarChar(100), registroData.categoria)
@@ -53,13 +70,11 @@ export const createRegistro = async (registroData) => {
       .input("detalle", sql.NVarChar(100), registroData.detalle)
       .input(
         "fecha_y_hora_de_paro",
-        sql.DateTime,
-        new Date(registroData.fecha_y_hora_de_paro)
+        registroData.fecha_y_hora_de_paro
       )
       .input(
         "fecha_y_hora_de_arranque",
-        sql.DateTime,
-        new Date(registroData.fecha_y_hora_de_arranque)
+        registroData.fecha_y_hora_de_arranque
       )
       .input("horas_de_paro", sql.Float, registroData.horas_de_paro)
       .input("cadencia", sql.Float, registroData.cadencia)
@@ -89,6 +104,7 @@ export const createRegistro = async (registroData) => {
 export const updateRegistro = async (id, registroData) => {
   try {
     const pool = await poolPromise;
+
     const result = await pool
       .request()
       .input("id_registro", sql.Int, id)
@@ -99,16 +115,9 @@ export const updateRegistro = async (id, registroData) => {
       .input("tipo", sql.NVarChar(100), registroData.tipo)
       .input("causa", sql.NVarChar(100), registroData.causa)
       .input("detalle", sql.NVarChar(100), registroData.detalle)
-      .input(
-        "fecha_y_hora_de_paro",
-        sql.DateTime,
-        new Date(registroData.fecha_y_hora_de_paro)
-      )
-      .input(
-        "fecha_y_hora_de_arranque",
-        sql.DateTime,
-        new Date(registroData.fecha_y_hora_de_arranque)
-      )
+      .input("horas_de_paro", sql.Float, registroData.horas_de_paro)
+      .input("fecha_y_hora_de_paro", registroData.fecha_y_hora_de_paro)
+      .input("fecha_y_hora_de_arranque", registroData.fecha_y_hora_de_arranque)
       .input("cadencia", sql.Float, registroData.cadencia)
       .input(
         "perdida_de_produccion",
@@ -128,6 +137,7 @@ export const updateRegistro = async (id, registroData) => {
                     fecha_y_hora_de_arranque = @fecha_y_hora_de_arranque,
                     cadencia = @cadencia,
                     perdida_de_produccion = @perdida_de_produccion,
+                    horas_de_paro = @horas_de_paro,
                     id_usuario = @id_usuario
                 OUTPUT INSERTED.*
                 WHERE id_registro = @id_registro
