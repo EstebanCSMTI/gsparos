@@ -13,7 +13,6 @@ export function Sidebar() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
 
-  // Guardar el estado del menú en localStorage cuando cambie
   const toggleSidebar = () => {
     setIsOpen(!isOpen)
   }

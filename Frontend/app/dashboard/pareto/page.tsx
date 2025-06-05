@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { Bar, BarChart, CartesianGrid, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, LabelList } from "recharts"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DateTime } from "luxon"
 
 // Define the interfaces for RegistroParo and ParetoData
 interface RegistroParo {
@@ -34,6 +35,7 @@ interface RegistroParo {
   causa: string
   horas_de_paro: number
   proceso: string
+  detalle: string // Añadido campo detalle para cada paro
 }
 
 interface ParetoData {
@@ -62,7 +64,10 @@ export default function ParetoPage() {
   const [activeTab, setActiveTab] = useState<"tabla" | "grafico">("tabla")
 
   // Add date range filter state
-  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>({
+  const [dateRange, setDateRange] = useState<{
+    startDate: string
+    endDate: string
+  }>({
     startDate: "",
     endDate: "",
   })
@@ -198,25 +203,31 @@ export default function ParetoPage() {
 
     // Filtrar datos según el rango de tiempo seleccionado
     const now = new Date()
+
     const filteredByTime = data.filter((item) => {
-      const itemDate = new Date(item.fecha_y_hora_de_paro)
+      const itemDateTime = DateTime.fromFormat(item.fecha_y_hora_de_paro, "yyyy-MM-dd HH:mm:ss", {
+        zone: "America/Bogota",
+      })
 
-      // Si estamos usando un rango de fechas personalizado
       if (timeRange === "custom") {
-        const startDateFilter = dateRange.startDate ? parse(dateRange.startDate, "yyyy-MM-dd", new Date()) : null
-        const endDateFilter = dateRange.endDate ? parse(dateRange.endDate, "yyyy-MM-dd", new Date()) : null
+        const startDateTime = dateRange.startDate
+          ? DateTime.fromISO(dateRange.startDate, {
+              zone: "America/Bogota",
+            }).startOf("day")
+          : null
 
-        // Ajustar la fecha de fin para incluir todo el día
-        if (endDateFilter) {
-          endDateFilter.setHours(23, 59, 59, 999)
-        }
+        const endDateTime = dateRange.endDate
+          ? DateTime.fromISO(dateRange.endDate, {
+              zone: "America/Bogota",
+            }).endOf("day")
+          : null
 
-        if (startDateFilter && endDateFilter) {
-          return isAfter(itemDate, startDateFilter) && isBefore(itemDate, endDateFilter)
-        } else if (startDateFilter) {
-          return isAfter(itemDate, startDateFilter)
-        } else if (endDateFilter) {
-          return isBefore(itemDate, endDateFilter)
+        if (startDateTime && endDateTime) {
+          return itemDateTime >= startDateTime && itemDateTime <= endDateTime
+        } else if (startDateTime) {
+          return itemDateTime >= startDateTime
+        } else if (endDateTime) {
+          return itemDateTime <= endDateTime
         }
         return true
       }
@@ -224,16 +235,17 @@ export default function ParetoPage() {
       // Filtros predefinidos
       switch (timeRange) {
         case "day":
-          return itemDate.toDateString() === now.toDateString()
+          return itemDateTime.toJSDate().toDateString() === now.toDateString()
         case "week": {
           const oneWeekAgo = new Date()
           oneWeekAgo.setDate(now.getDate() - 7)
-          return itemDate >= oneWeekAgo
+          return itemDateTime.toJSDate() >= oneWeekAgo
         }
         case "month": {
           const oneMonthAgo = new Date()
           oneMonthAgo.setMonth(now.getMonth() - 1)
-          return itemDate >= oneMonthAgo
+          const oneWeekAgo = new Date()
+          return itemDateTime.toJSDate() >= oneWeekAgo
         }
         default:
           return true // "all" - no filter
@@ -379,7 +391,9 @@ export default function ParetoPage() {
 
     try {
       setIsExporting(true)
-      toast.info("Generando archivo Excel con gráfico...", { duration: 3000 })
+      toast.info("Generando archivo Excel con gráfico y análisis por día...", {
+        duration: 3000,
+      })
 
       // Importar bibliotecas dinámicamente
       const html2canvas = (await import("html2canvas")).default
@@ -405,10 +419,10 @@ export default function ParetoPage() {
       workbook.created = new Date()
       workbook.modified = new Date()
 
-      // Crear hoja para los datos
+      // Crear hoja para los datos de Pareto
       const worksheetData = workbook.addWorksheet("Datos de Pareto")
 
-      // Añadir encabezados con estilo
+      // Añadir encabezados con estilo para la hoja de Pareto
       worksheetData.columns = [
         { header: "Causa", key: "causa", width: 40 },
         { header: "Horas de Paro", key: "horas", width: 15 },
@@ -429,7 +443,7 @@ export default function ParetoPage() {
         fgColor: { argb: "FFE0E0E0" },
       }
 
-      // Añadir datos
+      // Añadir datos de Pareto
       paretoData.forEach((row, index) => {
         const dataRow = worksheetData.addRow({
           causa: row.causa,
@@ -452,6 +466,396 @@ export default function ParetoPage() {
         dataRow.getCell("porcentaje").numFmt = '0.00"%"'
         dataRow.getCell("porcentajeAcumulado").numFmt = '0.00"%"'
       })
+
+      // ===== NUEVA HOJA: ANÁLISIS POR DÍA =====
+      const worksheetDaily = workbook.addWorksheet("Análisis por Día")
+
+      // Filtrar datos según los filtros aplicados (igual que en el análisis de Pareto)
+      const now = new Date()
+      const filteredByTime = data.filter((item) => {
+        const itemDateTime = DateTime.fromFormat(item.fecha_y_hora_de_paro, "yyyy-MM-dd HH:mm:ss", {
+          zone: "America/Bogota",
+        })
+      
+        if (timeRange === "custom") {
+          const startDateTime = dateRange.startDate 
+            ? DateTime.fromISO(dateRange.startDate, { zone: "America/Bogota" }).startOf('day')
+            : null
+          
+          const endDateTime = dateRange.endDate 
+            ? DateTime.fromISO(dateRange.endDate, { zone: "America/Bogota" }).endOf('day')
+            : null
+      
+          if (startDateTime && endDateTime) {
+            return itemDateTime >= startDateTime && itemDateTime <= endDateTime
+          } else if (startDateTime) {
+            return itemDateTime >= startDateTime  // Incluye la fecha exacta
+          } else if (endDateTime) {
+            return itemDateTime <= endDateTime
+          }
+          return true
+        }
+      
+        switch (timeRange) {
+          case "day": {
+            const today = DateTime.now().setZone("America/Bogota").startOf('day')
+            const tomorrow = today.plus({ days: 1 })
+            return itemDateTime >= today && itemDateTime < tomorrow
+          }
+          case "week": {
+            const weekAgo = DateTime.now().setZone("America/Bogota").minus({ weeks: 1 }).startOf('day')
+            return itemDateTime >= weekAgo
+          }
+          case "month": {
+            const monthAgo = DateTime.now().setZone("America/Bogota").minus({ months: 1 }).startOf('day')
+            return itemDateTime >= monthAgo
+          }
+          default:
+            return true
+        }
+      })
+
+      // Filtrar por especialidad y proceso si se han seleccionado
+      const filteredData = filteredByTime.filter((item) => {
+        const matchesEspecialidad = filtroEspecialidad === "todas" || item.especialidad === filtroEspecialidad
+        const matchesProceso = filtroProceso === "todos" || item.proceso === filtroProceso
+        return matchesEspecialidad && matchesProceso
+      })
+
+      // Definir las categorías de horas que queremos mostrar
+      const horasCategories = [
+        "Horas de operación",
+        "Horas de paro operativo",
+        "Horas de paro por fallas",
+        "Horas de paro externo",
+        "Horas Mtto Programado",
+      ]
+
+      // Estructura para almacenar los paros por día, especialidad y categoría
+      interface ParoInfo {
+        horas: number
+        detalles: string[] // Lista de detalles de paros
+      }
+
+      // Agrupar datos por día y especialidad
+      const dataByDay = filteredData.reduce<Record<string, Record<string, Record<string, ParoInfo>>>>((acc, item) => {
+        const date = format(new Date(item.fecha_y_hora_de_paro), "dd/MM/yyyy")
+        const especialidad = item.especialidad || "Sin especialidad"
+        const categoria = mapCausaToCategory(item.causa) // Función para mapear causas a categorías
+        const detalle = item.detalle || "Sin detalle"
+
+        if (!acc[date]) {
+          acc[date] = {}
+        }
+
+        if (!acc[date][especialidad]) {
+          acc[date][especialidad] = {}
+        }
+
+        // Inicializar todas las categorías para esta especialidad si no existen
+        horasCategories.forEach((cat) => {
+          if (!acc[date][especialidad][cat]) {
+            acc[date][especialidad][cat] = { horas: 0, detalles: [] }
+          }
+        })
+
+        // Sumar las horas a la categoría correspondiente y añadir el detalle
+        if (acc[date][especialidad][categoria]) {
+          acc[date][especialidad][categoria].horas += item.horas_de_paro
+          acc[date][especialidad][categoria].detalles.push(detalle)
+        } else {
+          acc[date][especialidad][categoria] = {
+            horas: item.horas_de_paro,
+            detalles: [detalle],
+          }
+        }
+
+        return acc
+      }, {})
+
+      // Función para mapear causas a categorías
+      function mapCausaToCategory(causa: string): string {
+        // Esta es una función simplificada. En un caso real, necesitarías una lógica más compleja
+        // basada en tus datos específicos para mapear causas a categorías
+        const causaLower = causa.toLowerCase()
+
+        if (causaLower.includes("operación") || causaLower.includes("operacion")) {
+          return "Horas de operación"
+        } else if (causaLower.includes("operativo") || causaLower.includes("operativa")) {
+          return "Horas de paro operativo"
+        } else if (causaLower.includes("falla") || causaLower.includes("avería") || causaLower.includes("averia")) {
+          return "Horas de paro por fallas"
+        } else if (causaLower.includes("externo") || causaLower.includes("externa")) {
+          return "Horas de paro externo"
+        } else if (
+          causaLower.includes("mantenimiento") ||
+          causaLower.includes("mtto") ||
+          causaLower.includes("programado")
+        ) {
+          return "Horas Mtto Programado"
+        } else {
+          // Por defecto, asignar a paro por fallas
+          return "Horas de paro por fallas"
+        }
+      }
+
+      // Obtener todas las especialidades únicas
+      const allEspecialidades = Array.from(
+        new Set(filteredData.map((item) => item.especialidad || "Sin especialidad")),
+      ).sort()
+
+      // Ordenar fechas
+      const sortedDates = Object.keys(dataByDay).sort((a, b) => {
+        const dateA = parse(a, "dd/MM/yyyy", new Date())
+        const dateB = parse(b, "dd/MM/yyyy", new Date())
+        return dateA.getTime() - dateB.getTime()
+      })
+
+      let currentRow = 1
+
+      // Título principal
+      worksheetDaily.addRow(["ANÁLISIS DE PAROS POR DÍA Y ESPECIALIDAD"])
+      worksheetDaily.getRow(currentRow).font = { bold: true, size: 16 }
+      worksheetDaily.mergeCells(`A${currentRow}:F${currentRow}`)
+      currentRow += 2
+
+      // Crear tabla para cada día
+      const dailyTotals: Record<string, Record<string, { horas: number; detalles: string[] }>> = {}
+      horasCategories.forEach((cat) => {
+        dailyTotals[cat] = {}
+      })
+
+      for (const date of sortedDates) {
+        const dayData = dataByDay[date]
+
+        // Título del día
+        worksheetDaily.addRow([date])
+        worksheetDaily.getRow(currentRow).font = { bold: true, size: 14 }
+        worksheetDaily.getRow(currentRow).fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFD9E2F3" },
+        }
+        worksheetDaily.mergeCells(`A${currentRow}:F${currentRow}`)
+        currentRow++
+
+        // Encabezados de la tabla del día
+        const dayHeaderRow = worksheetDaily.addRow(["", ...horasCategories, "Descripción"])
+        dayHeaderRow.font = { bold: true }
+        dayHeaderRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0E0E0" },
+        }
+        currentRow++
+
+        // Datos del día por especialidad
+        for (const especialidad of allEspecialidades) {
+          if (dayData[especialidad]) {
+            const rowData = [especialidad]
+            let hasData = false
+            let detallesPorEspecialidad: string[] = []
+
+            // Añadir datos para cada categoría
+            horasCategories.forEach((cat) => {
+              const paroInfo = dayData[especialidad][cat] || {
+                horas: 0,
+                detalles: [],
+              }
+              const horas = paroInfo.horas
+              rowData.push(horas)
+
+              // Acumular para el total general
+              if (!dailyTotals[cat][especialidad]) {
+                dailyTotals[cat][especialidad] = { horas: 0, detalles: [] }
+              }
+              dailyTotals[cat][especialidad].horas += horas
+
+              // Añadir detalles a la lista de detalles por especialidad
+              if (paroInfo.detalles.length > 0) {
+                detallesPorEspecialidad = detallesPorEspecialidad.concat(paroInfo.detalles)
+                dailyTotals[cat][especialidad].detalles = dailyTotals[cat][especialidad].detalles.concat(
+                  paroInfo.detalles,
+                )
+              }
+
+              if (horas > 0) hasData = true
+            })
+
+            // Añadir descripción (detalles de los paros)
+            const detallesUnicos = [...new Set(detallesPorEspecialidad)].filter(Boolean)
+            rowData.push(detallesUnicos.join("; "))
+
+            // Solo añadir la fila si tiene algún dato
+            if (hasData) {
+              const dataRow = worksheetDaily.addRow(rowData)
+
+              // Formato de números para todas las columnas de horas
+              for (let i = 0; i < horasCategories.length; i++) {
+                dataRow.getCell(i + 2).numFmt = "0.00"
+              }
+
+              // Ajustar el ancho de la celda de descripción si es necesario
+              if (detallesUnicos.join("; ").length > 50) {
+                dataRow.getCell(horasCategories.length + 2).alignment = {
+                  wrapText: true,
+                }
+              }
+
+              currentRow++
+            }
+          }
+        }
+
+        // Total del día
+        const totalRowData = ["TOTAL"]
+        let dayTotalHours = 0
+
+        // Calcular totales por categoría para este día
+        horasCategories.forEach((cat) => {
+          let categoryTotal = 0
+          for (const especialidad of allEspecialidades) {
+            if (dayData[especialidad] && dayData[especialidad][cat]) {
+              categoryTotal += dayData[especialidad][cat].horas
+            }
+          }
+          totalRowData.push(categoryTotal)
+          dayTotalHours += categoryTotal
+        })
+
+        totalRowData.push("") // Descripción vacía para la fila de total
+
+        const totalRow = worksheetDaily.addRow(totalRowData)
+        totalRow.font = { bold: true }
+        totalRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFCE4D6" },
+        }
+
+        // Formato de números para todas las columnas de horas
+        for (let i = 0; i < horasCategories.length; i++) {
+          totalRow.getCell(i + 2).numFmt = "0.00"
+        }
+
+        currentRow += 2 // Espacio después de cada tabla diaria
+      }
+
+      // Tabla resumen final
+      if (sortedDates.length > 0) {
+        const startDate = sortedDates[0]
+        const endDate = sortedDates[sortedDates.length - 1]
+        const dateRangeText = sortedDates.length > 1 ? `${startDate} - ${endDate}` : startDate
+
+        worksheetDaily.addRow([`RESUMEN TOTAL (${dateRangeText})`])
+        worksheetDaily.getRow(currentRow).font = { bold: true, size: 14 }
+        worksheetDaily.getRow(currentRow).fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFD5E8D4" },
+        }
+        worksheetDaily.mergeCells(`A${currentRow}:F${currentRow}`)
+        currentRow++
+
+        // Encabezados del resumen
+        const summaryHeaderRow = worksheetDaily.addRow(["", ...horasCategories, "Descripción"])
+        summaryHeaderRow.font = { bold: true }
+        summaryHeaderRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0E0E0" },
+        }
+        currentRow++
+
+        // Datos del resumen por especialidad
+        for (const especialidad of allEspecialidades) {
+          const rowData = [especialidad]
+          let hasData = false
+          let detallesResumen: string[] = []
+
+          // Añadir datos para cada categoría
+          horasCategories.forEach((cat) => {
+            const paroInfo = dailyTotals[cat][especialidad] || {
+              horas: 0,
+              detalles: [],
+            }
+            const totalHoras = paroInfo.horas
+            rowData.push(totalHoras)
+
+            // Recopilar detalles únicos para esta especialidad y categoría
+            if (paroInfo.detalles.length > 0) {
+              detallesResumen = detallesResumen.concat(paroInfo.detalles)
+            }
+
+            if (totalHoras > 0) hasData = true
+          })
+
+          // Añadir descripción (detalles únicos de todos los paros)
+          const detallesUnicos = [...new Set(detallesResumen)].filter(Boolean)
+          rowData.push(detallesUnicos.join("; "))
+
+          // Solo añadir la fila si tiene algún dato
+          if (hasData) {
+            const dataRow = worksheetDaily.addRow(rowData)
+
+            // Formato de números para todas las columnas de horas
+            for (let i = 0; i < horasCategories.length; i++) {
+              dataRow.getCell(i + 2).numFmt = "0.00"
+            }
+
+            // Ajustar el ancho de la celda de descripción si es necesario
+            if (detallesUnicos.join("; ").length > 50) {
+              dataRow.getCell(horasCategories.length + 2).alignment = {
+                wrapText: true,
+              }
+            }
+
+            currentRow++
+          }
+        }
+
+        // Gran total
+        const grandTotalRowData = ["GRAN TOTAL"]
+        let grandTotalHours = 0
+
+        // Calcular totales por categoría
+        horasCategories.forEach((cat) => {
+          let categoryTotal = 0
+          for (const especialidad of allEspecialidades) {
+            if (dailyTotals[cat][especialidad]) {
+              categoryTotal += dailyTotals[cat][especialidad].horas
+            }
+          }
+          grandTotalRowData.push(categoryTotal)
+          grandTotalHours += categoryTotal
+        })
+
+        grandTotalRowData.push("") // Descripción vacía para el gran total
+
+        const grandTotalRow = worksheetDaily.addRow(grandTotalRowData)
+        grandTotalRow.font = { bold: true, size: 12 }
+        grandTotalRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFF6B6B" },
+        }
+
+        // Formato de números para todas las columnas de horas
+        for (let i = 0; i < horasCategories.length; i++) {
+          grandTotalRow.getCell(i + 2).numFmt = "0.00"
+        }
+      }
+
+      // Ajustar ancho de columnas para la hoja diaria
+      worksheetDaily.columns = [
+        { width: 25 }, // Especialidad
+        { width: 15 }, // Horas de operación
+        { width: 15 }, // Horas de paro operativo
+        { width: 15 }, // Horas de paro por fallas
+        { width: 15 }, // Horas de paro externo
+        { width: 15 }, // Horas Mtto Programado
+        { width: 50 }, // Descripción - Ancho mayor para mostrar detalles
+      ]
 
       // Crear hoja para el gráfico
       const worksheetChart = workbook.addWorksheet("Gráfico de Pareto")
@@ -545,7 +949,7 @@ export default function ParetoPage() {
       link.click()
       document.body.removeChild(link)
 
-      toast.success("Archivo Excel con gráfico generado correctamente")
+      toast.success("Archivo Excel con gráfico y análisis por día generado correctamente")
     } catch (error) {
       console.error("Error al exportar a Excel:", error)
       toast.error("Error al exportar a Excel. Por favor, inténtelo de nuevo.")
@@ -889,10 +1293,6 @@ export default function ParetoPage() {
             <Card>
               <CardHeader className="pb-2 sm:pb-4">
                 <CardTitle className="text-lg sm:text-xl">Gráfico de Pareto</CardTitle>
-                <CardDescription>
-                  Visualización de las principales causas de paros (
-                  {isMobile ? "Top 3" : isLargeScreen ? "Top 8" : "Top 6"}) y su porcentaje acumulado
-                </CardDescription>
               </CardHeader>
               <CardContent>{renderGraficoPareto()}</CardContent>
             </Card>
@@ -1112,7 +1512,22 @@ export default function ParetoPage() {
                   }}
                   wrapperStyle={isMobile ? { fontSize: "12px" } : undefined}
                 />
-                <Bar dataKey="horas" yAxisId="left" fill="hsl(22, 100%, 50%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="horas" yAxisId="left" fill="hsl(22, 100%, 50%)" radius={[4, 4, 0, 0]}>
+                  <LabelList
+                    dataKey="horas"
+                    position="top"
+                    fill="hsl(22, 100%, 50%)"
+                    fontSize={isMobile ? 10 : isLargeScreen ? 12 : 11}
+                    fontWeight="bold"
+                    formatter={(value: number) => {
+                      // Solo mostrar etiqueta si el valor es mayor a 0
+                      if (value > 0) {
+                        return isMobile ? Math.round(value).toString() : value.toFixed(1)
+                      }
+                      return ""
+                    }}
+                  />
+                </Bar>
                 <Line
                   type="monotone"
                   dataKey="porcentajeAcumulado"
@@ -1120,12 +1535,18 @@ export default function ParetoPage() {
                   stroke="hsl(217, 100%, 30%)"
                   strokeWidth={2}
                 />
-                {/* Línea horizontal en el 80% para visualizar el principio de Pareto */}
+                {/* Línea horizontal en el 80%  */}
                 <Line
                   yAxisId="right"
-                  type="monotone"
-                  dataKey={() => 80}
-                  stroke="rgba(0, 0, 0, 0.5)"
+                  data={[
+                    { causa: chartData[0]?.causa, porcentajeAcumulado: 80 },
+                    {
+                      causa: chartData[chartData.length - 1]?.causa,
+                      porcentajeAcumulado: 80,
+                    },
+                  ]}
+                  dataKey="porcentajeAcumulado"
+                  stroke="hsl(217, 100%, 30%)"
                   strokeDasharray="3 3"
                   strokeWidth={1}
                   dot={false}
@@ -1138,39 +1559,28 @@ export default function ParetoPage() {
     )
   }
 
-  // Función para renderizar el mensaje de descarga en pantallas muy pequeñas
+  // Función para renderizar mensaje de descarga en pantallas muy pequeñas
   function renderMensajeDescarga() {
-    if (isLoading) {
-      return <Skeleton className="h-[200px] w-full" />
-    }
-
-    if (paretoData.length === 0) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          No hay datos disponibles para el análisis de Pareto.
-        </div>
-      )
-    }
-
     return (
-      <div className="py-6 flex flex-col items-center justify-center space-y-4">
-        <div className="text-center text-muted-foreground">
-          <BarChart3 className="h-12 w-12 mx-auto mb-2 text-primary/50" />
-          <p>El gráfico no está disponible en pantallas muy pequeñas.</p>
-          <p className="mt-2">Puede descargar los datos para visualizarlos en otro dispositivo.</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="text-center py-8 text-muted-foreground h-[200px] flex flex-col items-center justify-center gap-4">
+        <BarChart3 className="h-12 w-12 text-muted-foreground" />
+        <div>
+          <p className="mb-2">La pantalla es demasiado pequeña para mostrar el gráfico.</p>
           <Button
+            variant="outline"
+            size="sm"
             onClick={exportToExcel}
-            disabled={!librariesLoaded.exceljs || !librariesLoaded.html2canvas || isExporting}
+            disabled={
+              isLoading ||
+              paretoData.length === 0 ||
+              !librariesLoaded.html2canvas ||
+              !librariesLoaded.exceljs ||
+              isExporting
+            }
             className="flex items-center gap-2"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            {isExporting ? "Exportando..." : "Descargar Excel"}
-          </Button>
-          <Button variant="outline" onClick={exportToCSV} className="flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            CSV
+            {isExporting ? "Exportando..." : "Exportar a Excel"}
           </Button>
         </div>
       </div>

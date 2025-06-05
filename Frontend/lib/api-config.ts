@@ -1,7 +1,7 @@
 // Configuración de la API con soporte para variables de entorno
 
 // URL base de la API - Primero intenta usar la variable de entorno, si no existe usa el valor por defecto
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.16.94:8028";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.19.27:8023";
 
 // Endpoints específicos
 export const API_ENDPOINTS = {

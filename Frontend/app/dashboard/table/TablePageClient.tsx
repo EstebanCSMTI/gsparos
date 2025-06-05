@@ -588,8 +588,6 @@ const TablePageClient = () => {
     }
   }, [formData.type, tipos]);
 
-  // Modificar la función applyDateFilter para incluir todos los filtros
-  // Reemplazar la función applyDateFilter con esta nueva función applyFilters
   const applyFilters = () => {
     const newData = data.filter((item) => {
       // Date filtering
@@ -599,20 +597,45 @@ const TablePageClient = () => {
           return true;
         }
 
-        const itemDate = new Date(item.fecha_y_hora_de_paro);
+        // Convertir la fecha del item a Luxon DateTime
+        const itemDateTime = DateTime.fromFormat(
+          item.fecha_y_hora_de_paro,
+          "yyyy-MM-dd HH:mm:ss",
+          { zone: "America/Bogota" }
+        );
 
         // If only start date
         if (startDate && !endDate) {
-          return itemDate >= new Date(startDate);
+          // Crear fecha de inicio al comienzo del día en zona local
+          const startDateTime = DateTime.fromISO(startDate, {
+            zone: "America/Bogota",
+          }).startOf("day");
+
+          console.log("Start DateTime:", startDateTime.toISO());
+          console.log("Item DateTime:", itemDateTime.toISO());
+          console.log("Comparison result:", itemDateTime >= startDateTime);
+
+          return itemDateTime >= startDateTime;
         }
 
         // If only end date
         if (!startDate && endDate) {
-          return itemDate <= new Date(endDate);
+          // Crear fecha final al final del día en zona local
+          const endDateTime = DateTime.fromISO(endDate, {
+            zone: "America/Bogota",
+          }).endOf("day");
+          return itemDateTime <= endDateTime;
         }
 
         // If both dates
-        return itemDate >= new Date(startDate) && itemDate <= new Date(endDate);
+        const startDateTime = DateTime.fromISO(startDate, {
+          zone: "America/Bogota",
+        }).startOf("day");
+        const endDateTime = DateTime.fromISO(endDate, {
+          zone: "America/Bogota",
+        }).endOf("day");
+
+        return itemDateTime >= startDateTime && itemDateTime <= endDateTime;
       })();
 
       // Category filtering
@@ -1209,7 +1232,8 @@ const TablePageClient = () => {
       const fechaParo = stopDate.toFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       const fechaArranque = startDate.toFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
 
-      const horasDeParo = Math.round(startDate.diff(stopDate, "hours").hours * 1000) / 1000;
+      const horasDeParo =
+        Math.round(startDate.diff(stopDate, "hours").hours * 1000) / 1000;
 
       console.log("✅", fechaArranque, fechaParo);
 

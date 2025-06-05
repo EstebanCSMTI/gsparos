@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true)
     try {
-      const response = await fetch("http://192.168.16.94:8028/api/usuarios/auth/login", {
+      const response = await fetch(API_ENDPOINTS.auth, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
